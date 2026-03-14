@@ -1,61 +1,177 @@
-# Food Waste Management System
+# Food Waste Management Platform
 
-Full-stack application for food donation lifecycle management.
+Full-stack platform for rescuing surplus food and coordinating handoff between donors, NGOs, volunteers, and admins.
 
-## Codebase Analysis
+## What This Repo Contains
 
-### High-level structure
+- `backend/`: Express + MongoDB API (auth, donation lifecycle, NGO matching, volunteer operations, admin analytics)
+- `frontend/`: Primary React web app used by Docker deployment
+- `src/` (root app): Secondary React client variant in the root workspace
 
-- `backend/`: Express + MongoDB REST API with auth, donations, NGOs, volunteer, and admin modules.
-- `frontend/`: React + Vite client with dashboards and donation flows.
-- `src/` (root): another React app snapshot/variant (likely older or parallel implementation).
+The production Docker stack targets `frontend/` + `backend/`.
 
-### Runtime observations
+## Key Features
 
-- Backend supports configurable `PORT`, Mongo via `MONGO_URI`, JWT auth via `JWT_SECRET`.
-- API health endpoint is `GET /api/health`.
-- Frontend API client uses relative `/api` routes, so reverse proxying works well in containers.
-- Port mismatch exists in current local configs:
-	- `frontend/vite.config.js` proxies to `5000`
-	- root `vite.config.js` proxies to `5001`
-- Repository currently contains `backend/.env` with sensitive values. Rotate credentials and keep only `.env.example` in source control.
+- Role-based access control: `donor`, `ngo`, `volunteer`, `admin`
+- Full donation workflow: `available -> accepted -> pickedUp -> delivered` (+ `cancelled`)
+- Freshness scoring with urgency hints
+- Geo-aware nearest NGO suggestions
+- Volunteer assignment and delivery confirmation
+- Environmental impact tracking: meals, CO2 offset, water saved
+- Admin dashboard with status, category, and monthly trend analytics
 
-## Dockerized Setup
+## Architecture
 
-This repository now includes:
+### Backend
 
-- `docker-compose.yml`: MongoDB + backend + frontend orchestration
-- `backend/Dockerfile`: production Node API image
-- `frontend/Dockerfile`: multi-stage build (Vite build -> Nginx runtime)
-- `frontend/nginx.conf`: SPA routing + `/api` proxy to backend
-- `.dockerignore` files for backend/frontend
+- Runtime: Node.js, Express, Mongoose
+- Auth: JWT bearer token
+- Data store: MongoDB
+- API base: `/api`
+- Health check: `GET /api/health`
 
-### Start everything
+### Frontend
+
+- Runtime: React + Vite + Axios
+- API access: relative `/api` requests
+- In Docker: served by Nginx, `/api` reverse-proxied to backend service
+
+## Repository Structure
+
+```text
+food-waste/
+	docker-compose.yml
+	backend/
+		src/
+			config/
+			controllers/
+			middleware/
+			models/
+			routes/
+			utils/
+	frontend/
+		src/
+			components/
+			context/
+			pages/
+			routes/
+			services/
+	src/
+		components/
+		context/
+		pages/
+		services/
+```
+
+## Quick Start (Docker, Recommended)
+
+### 1. Start all services
 
 ```bash
 docker compose up --build
 ```
 
-### Access services
+### 2. Access
 
 - Frontend: `http://localhost`
 - Backend health: `http://localhost:5000/api/health`
 - MongoDB: `mongodb://localhost:27017/food-waste`
 
-### Stop
+### 3. Stop
 
 ```bash
 docker compose down
 ```
 
-### Stop and remove DB volume
+### 4. Stop and remove DB volume
 
 ```bash
 docker compose down -v
 ```
 
-## Environment notes
+## Local Development (Without Docker)
 
-- Compose injects backend env vars directly, including a placeholder JWT secret.
-- Update `JWT_SECRET` for production deployment.
-- If needed, move env vars to a dedicated env file and reference it from `docker-compose.yml`.
+### Backend
+
+```bash
+cd backend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+### Frontend (Primary)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Runs on `http://localhost:5173` and proxies `/api` to backend `http://localhost:5000`.
+
+### Root Frontend Variant
+
+```bash
+npm install
+npm run dev
+```
+
+This runs the root app (`src/`) and currently proxies `/api` to `http://localhost:5001` via `vite.config.js`, which differs from backend default `5000`.
+
+## Environment Configuration
+
+Backend environment variables (`backend/.env.example`):
+
+- `NODE_ENV`
+- `PORT`
+- `MONGO_URI`
+- `JWT_SECRET`
+- `JWT_EXPIRES_IN`
+- `CLIENT_URL`
+
+Security note: use a strong `JWT_SECRET` in any shared or production environment.
+
+## API Surface (Summary)
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `GET /api/donations`
+- `POST /api/donations`
+- `GET /api/donations/:id`
+- `PATCH /api/donations/:id/cancel`
+- `PATCH /api/donations/:id/accept`
+- `POST /api/donations/:id/assign`
+- `PATCH /api/donations/:id/pickup`
+- `PATCH /api/donations/:id/deliver`
+- `GET /api/volunteer/available`
+- `GET /api/volunteer/assignments`
+- `GET /api/volunteer/history`
+- `GET /api/ngos`
+- `GET /api/ngos/nearest`
+- `GET /api/ngos/volunteers`
+- `GET /api/admin/stats`
+- `GET /api/admin/users`
+- `PATCH /api/admin/users/:id/toggle`
+- `GET /api/admin/donations`
+- `PATCH /api/admin/donations/:id/cancel`
+
+See module docs for details:
+
+- `backend/README.md`
+- `frontend/README.md`
+- `src/README.md`
+
+## Known Nuances
+
+- Two frontend implementations exist: `frontend/` (primary) and root `src/` (secondary).
+- Token storage keys differ between frontends (`fw_token` vs `token`).
+- Dev proxy ports differ between frontends (`5000` vs `5001`).
+
+## Engineering Notes
+
+- API responses use a shared envelope via `sendResponse` utility.
+- Error handling is centralized through custom `AppError` + global middleware.
+- Donation freshness and impact are calculated server-side.
+- Mongo geospatial indexes are used for NGO proximity queries.
