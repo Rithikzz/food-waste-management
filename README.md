@@ -1,16 +1,61 @@
-# React + Vite
+# Food Waste Management System
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Full-stack application for food donation lifecycle management.
 
-Currently, two official plugins are available:
+## Codebase Analysis
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### High-level structure
 
-## React Compiler
+- `backend/`: Express + MongoDB REST API with auth, donations, NGOs, volunteer, and admin modules.
+- `frontend/`: React + Vite client with dashboards and donation flows.
+- `src/` (root): another React app snapshot/variant (likely older or parallel implementation).
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Runtime observations
 
-## Expanding the ESLint configuration
+- Backend supports configurable `PORT`, Mongo via `MONGO_URI`, JWT auth via `JWT_SECRET`.
+- API health endpoint is `GET /api/health`.
+- Frontend API client uses relative `/api` routes, so reverse proxying works well in containers.
+- Port mismatch exists in current local configs:
+	- `frontend/vite.config.js` proxies to `5000`
+	- root `vite.config.js` proxies to `5001`
+- Repository currently contains `backend/.env` with sensitive values. Rotate credentials and keep only `.env.example` in source control.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Dockerized Setup
+
+This repository now includes:
+
+- `docker-compose.yml`: MongoDB + backend + frontend orchestration
+- `backend/Dockerfile`: production Node API image
+- `frontend/Dockerfile`: multi-stage build (Vite build -> Nginx runtime)
+- `frontend/nginx.conf`: SPA routing + `/api` proxy to backend
+- `.dockerignore` files for backend/frontend
+
+### Start everything
+
+```bash
+docker compose up --build
+```
+
+### Access services
+
+- Frontend: `http://localhost`
+- Backend health: `http://localhost:5000/api/health`
+- MongoDB: `mongodb://localhost:27017/food-waste`
+
+### Stop
+
+```bash
+docker compose down
+```
+
+### Stop and remove DB volume
+
+```bash
+docker compose down -v
+```
+
+## Environment notes
+
+- Compose injects backend env vars directly, including a placeholder JWT secret.
+- Update `JWT_SECRET` for production deployment.
+- If needed, move env vars to a dedicated env file and reference it from `docker-compose.yml`.
